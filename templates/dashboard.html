@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2 class="mb-3">Faculty Research Analytics Dashboard</h2>
+        <div class="card">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card bg-primary text-white mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Total Publications</h5>
+                                <h2 class="card-text" id="totalPublications">{{ data.total_publications if data else 0 }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-success text-white mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Total Citations</h5>
+                                <h2 class="card-text" id="totalCitations">{{ data.total_citations if data else 0 }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-info text-white mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Last Updated</h5>
+                                <h2 class="card-text" id="lastUpdated">{{ data.last_updated.strftime('%m/%d/%Y') if data and data.last_updated else '-' }}</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card bg-warning text-white mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title">Next Update</h5>
+                                <h2 class="card-text" id="nextUpdate">Tomorrow</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Top Publications</h4>
+            </div>
+            <div class="card-body p-0">
+                <div id="topPublications">
+                    {% if data and data.top_publications %}
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover mb-0" style="width: 100%;">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40%">Title</th>
+                                        <th style="width: 25%">Authors</th>
+                                        <th style="width: 20%">Journal</th>
+                                        <th style="width: 8%">Year</th>
+                                        <th style="width: 7%">Citations</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for pub in data.top_publications %}
+                                    <tr>
+                                        <td>
+                                            <div class="fw-bold text-white">{{ pub.title }}</div>
+                                            {% if pub.doi %}
+                                            <small class="text-info">DOI: {{ pub.doi }}</small>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <small class="text-light">{{ pub.authors }}</small>
+                                        </td>
+                                        <td>
+                                            <small class="text-muted">{{ pub.journal }}</small>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">{{ pub.year }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-primary">{{ pub.citations }}</span>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <p class="text-muted">No publications found</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Publication Trends</h4>
+            </div>
+            <div class="card-body">
+                <div id="trendChart"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script>
+// Force immediate dashboard update
+console.log('Inline script executing...');
+
+// Function to update dashboard immediately
+function forceUpdateDashboard() {
+    console.log('Force updating dashboard...');
+    
+    fetch('/api/dashboard')
+        .then(response => {
+            console.log('API response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('API data received:', data);
+            
+            // Force update the display elements
+            const totalPubs = document.getElementById('totalPublications');
+            const totalCites = document.getElementById('totalCitations');
+            const lastUpdated = document.getElementById('lastUpdated');
+            const nextUpdate = document.getElementById('nextUpdate');
+            
+            if (totalPubs) {
+                totalPubs.textContent = data.totalPublications || 0;
+                console.log('Updated publications to:', data.totalPublications);
+            }
+            
+            if (totalCites) {
+                totalCites.textContent = data.totalCitations || 0;
+                console.log('Updated citations to:', data.totalCitations);
+            }
+            
+            if (lastUpdated) {
+                const date = data.lastUpdated ? new Date(data.lastUpdated).toLocaleString() : '-';
+                lastUpdated.textContent = date;
+            }
+            
+            if (nextUpdate) {
+                const date = data.nextUpdate ? new Date(data.nextUpdate).toLocaleString() : '-';
+                nextUpdate.textContent = date;
+            }
+            
+            // Update top publications list
+            const topPubsContainer = document.getElementById('topPublications');
+            if (topPubsContainer && data.topPublications) {
+                topPubsContainer.innerHTML = '';
+                data.topPublications.forEach(pub => {
+                    const div = document.createElement('div');
+                    div.className = 'publication-item';
+                    div.innerHTML = `
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h5 class="mb-0">${pub.title}</h5>
+                                <small class="text-muted">${pub.journal} (${pub.year})</small>
+                            </div>
+                            <div>
+                                <span class="badge bg-primary">${pub.citations} Citations</span>
+                            </div>
+                        </div>
+                    `;
+                    topPubsContainer.appendChild(div);
+                });
+            }
+            
+            console.log('Dashboard force update complete!');
+        })
+        .catch(error => {
+            console.error('Error in force update:', error);
+        });
+}
+
+// Execute immediately when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', forceUpdateDashboard);
+} else {
+    forceUpdateDashboard();
+}
+
+// Also execute after a short delay to ensure everything is loaded
+setTimeout(forceUpdateDashboard, 1000);
+</script>
+{% endblock %}
